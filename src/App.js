@@ -12,25 +12,15 @@ import { STATUS } from './constants'
 
 export default function App() {
   const { tasks, deleteTask } = useTaskContext()
-
-  const [modalOpen, setModalOpen] = useState(false)
-  const [taskToEdit, setTaskToEdit] = useState(null)
-  const [taskToDelete, setTaskToDelete] = useState(null)
+  const [dialog, setDialog] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [priorityFilter, setPriorityFilter] = useState('All')
   const [viewMode, setViewMode] = useState('list')
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('darkMode') === 'true'
-  })
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true')
 
-  // Sync dark class to html element
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    document.documentElement.classList.toggle('dark', darkMode)
     localStorage.setItem('darkMode', darkMode)
   }, [darkMode])
 
@@ -38,32 +28,28 @@ export default function App() {
   const completed = tasks.filter(t => t.status === STATUS.COMPLETED).length
 
   const filteredTasks = useMemo(() => {
+    const q = searchQuery.toLowerCase()
     return tasks.filter(task => {
       const matchesSearch =
-        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()))
+        task.title.toLowerCase().includes(q) ||
+        (task.description && task.description.toLowerCase().includes(q))
       const matchesStatus = statusFilter === 'All' || task.status === statusFilter
       const matchesPriority = priorityFilter === 'All' || task.priority === priorityFilter
       return matchesSearch && matchesStatus && matchesPriority
     })
   }, [tasks, searchQuery, statusFilter, priorityFilter])
 
-  const handleOpenCreate = () => { setTaskToEdit(null); setModalOpen(true) }
-  const handleEdit = (task) => { setTaskToEdit(task); setModalOpen(true) }
-  const handleDeleteClick = (task) => setTaskToDelete(task)
-  const handleConfirmDelete = () => { deleteTask(taskToDelete.id); setTaskToDelete(null) }
-  const handleCancelDelete = () => setTaskToDelete(null)
-  const handleCloseModal = () => { setModalOpen(false); setTaskToEdit(null) }
+  const closeDialog = () => setDialog(null)
 
   return (
-    <div className="h-screen bg-gray-100 dark:bg-gray-900 transition-colors flex flex-col overflow-hidden">
-      <Header viewMode={viewMode} onViewChange={setViewMode} darkMode={darkMode} onToggleDark={() => setDarkMode(!darkMode)} />
-      <main className="max-w-6xl w-full mx-auto flex flex-col flex-1 overflow-hidden py-6 px-6">
+    <div className="flex h-screen flex-col overflow-hidden bg-gray-100 transition-colors dark:bg-gray-900">
+      <Header viewMode={viewMode} onViewChange={setViewMode} darkMode={darkMode} onToggleDark={() => setDarkMode(d => !d)} />
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-hidden px-6 py-6">
         <StatsBar total={tasks.length} pending={pending} completed={completed} />
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
           <div className="shrink-0">
             <Toolbar
-              onNewTask={handleOpenCreate}
+              onNewTask={() => setDialog({ type: 'task', task: null })}
               searchQuery={searchQuery}
               onSearch={setSearchQuery}
               statusFilter={statusFilter}
@@ -72,21 +58,30 @@ export default function App() {
               onPriorityFilter={setPriorityFilter}
             />
           </div>
-          <div className="border-t border-gray-200 dark:border-gray-700 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-auto border-t border-gray-200 dark:border-gray-700">
             {filteredTasks.length === 0 && tasks.length === 0 && <EmptyState />}
             {filteredTasks.length === 0 && tasks.length > 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <span className="text-4xl mb-3">🔍</span>
-                <p className="text-gray-500 text-sm">No tasks match your search or filters</p>
+                <span className="mb-3 text-4xl">🔍</span>
+                <p className="text-sm text-gray-500">No tasks match your search or filters</p>
               </div>
             )}
             {filteredTasks.length > 0 && viewMode === 'list' && (
-              <TaskTable tasks={filteredTasks} onEdit={handleEdit} onDelete={handleDeleteClick} />
+              <TaskTable
+                tasks={filteredTasks}
+                onEdit={task => setDialog({ type: 'task', task })}
+                onDelete={task => setDialog({ type: 'delete', task })}
+              />
             )}
             {filteredTasks.length > 0 && viewMode === 'card' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
+              <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredTasks.map(task => (
-                  <TaskCard key={task.id} task={task} onEdit={handleEdit} onDelete={handleDeleteClick} />
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onEdit={t => setDialog({ type: 'task', task: t })}
+                    onDelete={t => setDialog({ type: 'delete', task: t })}
+                  />
                 ))}
               </div>
             )}
@@ -94,9 +89,15 @@ export default function App() {
         </div>
       </main>
 
-      {modalOpen && <TaskModal taskToEdit={taskToEdit} onClose={handleCloseModal} />}
-      {taskToDelete && (
-        <ConfirmDialog task={taskToDelete} onConfirm={handleConfirmDelete} onCancel={handleCancelDelete} />
+      {dialog?.type === 'task' && (
+        <TaskModal taskToEdit={dialog.task} onClose={closeDialog} />
+      )}
+      {dialog?.type === 'delete' && (
+        <ConfirmDialog
+          task={dialog.task}
+          onConfirm={() => { deleteTask(dialog.task.id); closeDialog() }}
+          onCancel={closeDialog}
+        />
       )}
     </div>
   )
