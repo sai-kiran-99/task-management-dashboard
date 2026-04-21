@@ -19,7 +19,7 @@ It features a responsive UI, List & Card views, and Dark/Light mode support for 
 
 🌐 Live Demo
 
-🔗 Add your Netlify/Vercel URL here after deployment
+🔗 https://task-management-dashboard-azure.vercel.app/
 
 ✨ Features
 Feature	Description
